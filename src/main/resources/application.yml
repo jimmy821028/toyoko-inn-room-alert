@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: toyoko-inn-room-alert
+  main:
+    web-application-type: none
+  http:
+    clients:
+      connect-timeout: 10s
+      read-timeout: 20s
+  task:
+    scheduling:
+      pool:
+        size: 1
+
+toyoko-inn:
+  # 查詢空房的執行間隔，使用 Spring Duration 格式，例如 30s、1m 或 1h。
+  poll-interval: 1m
+  # 入住日期，格式為 yyyy-MM-dd；可由環境變數 TOYOKO_CHECKIN_DATE 覆寫。
+  checkin-date: ${TOYOKO_CHECKIN_DATE:2027-04-01}
+  # 退房日期，格式為 yyyy-MM-dd，且必須晚於入住日期；可由環境變數 TOYOKO_CHECKOUT_DATE 覆寫。
+  checkout-date: ${TOYOKO_CHECKOUT_DATE:2027-04-22}
+  # 每間房入住人數，必須大於 0。
+  number-of-people: 1
+  # 要預訂的房間數量，必須大於 0。
+  number-of-room: 1
+  # 吸菸條件：all 表示不限、smoking 表示吸菸房、noSmoking 表示禁菸房；只能使用這三種值。
+  smoking-type: noSmoking
+  # 要查詢空房的飯店名稱清單，名稱必須與東橫 INN 官網顯示的名稱完全一致。
+  hotel-names:
+    - 東横INN新横浜駅前本館
+    - 東横INN新横浜駅前新館
+  # 每次呼叫東橫 INN 空房 API 時包含的飯店數量，必須大於 0。
+  availability-batch-size: 30
+  discord:
+    # Discord Webhook URL；請透過環境變數 DISCORD_WEBHOOK_URL 提供，避免提交秘密資料。
+    webhook-url: ${DISCORD_WEBHOOK_URL:}
