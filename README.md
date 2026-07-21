@@ -46,14 +46,11 @@ toyoko-inn:
 `number-of-people` 是每間房入住人數，`number-of-room` 是房間數，兩者都必須大於 0。
 `smoking-type` 只能是 `all`（不限）、`smoking`（吸菸房）或 `noSmoking`（禁菸房）。這三項設定也會套用至 Discord 通知中的訂房連結。
 
-環境變數仍可覆寫日期與 Discord Webhook。請在每次執行前確認入住與退房日期；`application.yml` 中的預設日期可能已經過期，不建議未確認就直接使用。入住日不得早於程式執行當日，退房日必須晚於入住日。
+飯店、日期、入住條件與輪詢間隔皆可直接在 `application.yml` 設定。請在每次執行前確認入住與退房日期；設定檔中的日期可能已經過期，不建議未確認就直接使用。入住日不得早於程式執行當日，退房日必須晚於入住日。
 
 | 環境變數 | 必要性 | 格式／範例 | 說明 |
 | --- | --- | --- | --- |
 | `DISCORD_WEBHOOK_URL` | 通知必填 | `https://discord.com/api/webhooks/...` | Discord Incoming Webhook URL；未設定時程式仍會查詢，但會略過通知。 |
-| `TOYOKO_CHECKIN_DATE` | 執行前應確認 | `2027-04-01` | 入住日期，格式必須為 `yyyy-MM-dd`，且不得早於執行當日。 |
-| `TOYOKO_CHECKOUT_DATE` | 執行前應確認 | `2027-04-22` | 退房日期，格式必須為 `yyyy-MM-dd`，且必須晚於入住日期。 |
-| `TOYOKOINN_POLLINTERVAL` | 選填 | `1m`、`30s` | 輪詢間隔，預設 `1m`。這是 Spring Boot 對 `toyoko-inn.poll-interval` 的環境變數命名。 |
 
 > [!IMPORTANT]
 > `DISCORD_WEBHOOK_URL` 等同可向指定頻道發訊息的秘密權杖。請勿將實際網址寫入 `application.yml`、提交到 Git、貼在 issue，或輸出到公開 log。若曾外洩，請立即在 Discord 刪除該 Webhook 並建立新的 Webhook。
@@ -64,18 +61,12 @@ toyoko-inn:
 
 ```powershell
 $env:DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/你的_WEBHOOK_ID/你的_WEBHOOK_TOKEN"
-$env:TOYOKO_CHECKIN_DATE = "2027-04-01"
-$env:TOYOKO_CHECKOUT_DATE = "2027-04-22"
-$env:TOYOKOINN_POLLINTERVAL = "1m"
 ```
 
 ### macOS／Linux
 
 ```bash
 export DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/你的_WEBHOOK_ID/你的_WEBHOOK_TOKEN'
-export TOYOKO_CHECKIN_DATE='2027-04-01'
-export TOYOKO_CHECKOUT_DATE='2027-04-22'
-export TOYOKOINN_POLLINTERVAL='1m'
 ```
 
 ## 如何取得 Discord Webhook URL
@@ -92,7 +83,7 @@ export TOYOKOINN_POLLINTERVAL='1m'
 
 ## 啟動應用程式
 
-先確認 `application.yml` 中的飯店與日期，並視需要設定上述環境變數，再於專案根目錄執行。
+先確認 `application.yml` 中的飯店與日期，並視需要設定 `DISCORD_WEBHOOK_URL`，再於專案根目錄執行。
 
 Windows：
 
@@ -154,7 +145,7 @@ java -jar target/toyoko-inn-room-alert-0.0.1-SNAPSHOT.jar
 
 ### 修改設定後沒有生效
 
-環境變數與設定檔會在應用程式啟動時讀取。使用 `spring-boot:run` 時，修改後請重新啟動；若執行的是已封裝 JAR，修改 `src/main/resources/application.yml` 後必須重新建置 JAR。
+`DISCORD_WEBHOOK_URL` 與設定檔會在應用程式啟動時讀取。使用 `spring-boot:run` 時，修改後請重新啟動；若執行的是已封裝 JAR，修改 `src/main/resources/application.yml` 後必須重新建置 JAR。
 
 ## 注意事項
 
