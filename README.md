@@ -10,10 +10,10 @@
 - Discord 通知包含飯店名稱、最低價格及帶入入住／退房日期的訂房連結。
 - 查詢失敗時保留前一次狀態，避免因暫時性的 API 錯誤產生錯誤通知。
 - Discord 通知每 10 間飯店分成一批；只有確認發送成功後才更新該批價格，失敗項目會於下次輪詢重試。
-- 啟動時從東橫 INN 官方飯店一覽頁取得飯店名稱與代碼，只查詢 `application.yml` 指定的飯店。
+- 啟動時從東橫 INN 官方飯店一覽頁取得飯店名稱與代碼，只查詢 `.env` 指定的飯店。
 - 若日期、批次大小或任一飯店名稱不正確，會一次列出相關錯誤並停止應用程式，不會執行部分查詢。
 
-監控清單與其他應用設定集中定義於 `src/main/resources/application.yml`。
+監控清單、日期、入住條件、輪詢間隔與 Discord Webhook 均由環境變數提供。使用 Docker Compose 時，設定集中存放於不納入版本控制的 `.env`。
 
 ## 執行需求
 
@@ -25,49 +25,32 @@
 
 ## 應用程式設定
 
-以 UTF-8 編輯 `src/main/resources/application.yml`，逐行填入要監控的完整飯店名稱：
-
-```yaml
-toyoko-inn:
-  hotel-names:
-    - 東横INN新横浜駅前本館
-    - 東横INN横浜桜木町
-  checkin-date: 2027-04-01
-  checkout-date: 2027-04-22
-  number-of-people: 1
-  number-of-room: 1
-  smoking-type: noSmoking
-  poll-interval: 1m
-  availability-batch-size: 30
-```
-
-飯店名稱採精確比對，包含空白、全形／半形及 `INN` 大小寫都必須與東橫 INN 官方飯店一覽頁相同。
-`availability-batch-size` 控制每次送往東橫 INN 空房 API 的飯店數量，預設為 30，且必須大於 0。
-`number-of-people` 是每間房入住人數，`number-of-room` 是房間數，兩者都必須大於 0。
-`smoking-type` 只能是 `all`（不限）、`smoking`（吸菸房）或 `noSmoking`（禁菸房）。這三項設定也會套用至 Discord 通知中的訂房連結。
-
-飯店、日期、入住條件與輪詢間隔皆可直接在 `application.yml` 設定。請在每次執行前確認入住與退房日期；設定檔中的日期可能已經過期，不建議未確認就直接使用。入住日不得早於程式執行當日，退房日必須晚於入住日。
-
-| 環境變數 | 必要性 | 格式／範例 | 說明 |
-| --- | --- | --- | --- |
-| `DISCORD_WEBHOOK_URL` | 通知必填 | `https://discord.com/api/webhooks/...` | Discord Incoming Webhook URL；未設定時程式仍會查詢，但會略過通知。 |
-
-> [!IMPORTANT]
-> `DISCORD_WEBHOOK_URL` 等同可向指定頻道發訊息的秘密權杖。請勿將實際網址寫入 `application.yml`、提交到 Git、貼在 issue，或輸出到公開 log。若曾外洩，請立即在 Discord 刪除該 Webhook 並建立新的 Webhook。
-
-### Windows PowerShell
-
-以下設定只套用於目前的 PowerShell 工作階段：
+先將範例檔複製為 `.env`，再以 UTF-8 編輯實際設定：
 
 ```powershell
-$env:DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/你的_WEBHOOK_ID/你的_WEBHOOK_TOKEN"
+Copy-Item env.example .env
 ```
 
-### macOS／Linux
+`.env` 已加入 `.gitignore`；實際日期、監控清單及 Webhook 不會被提交。`env.example` 僅提供格式與安全範例，不應填入真正的秘密資料。
 
-```bash
-export DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/你的_WEBHOOK_ID/你的_WEBHOOK_TOKEN'
-```
+| 環境變數 | 必要性／預設值 | 格式／範例 | 說明 |
+| --- | --- | --- | --- |
+| `TOYOKO_INN_CHECKIN_DATE` | 必填 | `2099-01-01` | 入住日期，格式為 `yyyy-MM-dd`，且不得早於執行當日。 |
+| `TOYOKO_INN_CHECKOUT_DATE` | 必填 | `2099-01-02` | 退房日期，必須晚於入住日期。 |
+| `TOYOKO_INN_HOTEL_NAMES` | 必填 | `飯店A,飯店B` | 以半形逗號分隔的完整飯店名稱。 |
+| `TOYOKO_INN_POLL_INTERVAL` | `1m` | `30s`、`1m`、`1h` | 查詢間隔，使用 Spring Duration 格式。 |
+| `TOYOKO_INN_NUMBER_OF_PEOPLE` | `1` | `2` | 每間房入住人數，必須大於 0。 |
+| `TOYOKO_INN_NUMBER_OF_ROOM` | `1` | `1` | 要預訂的房間數量，必須大於 0。 |
+| `TOYOKO_INN_SMOKING_TYPE` | `noSmoking` | `all` | 只能是 `all`、`smoking` 或 `noSmoking`。 |
+| `TOYOKO_INN_AVAILABILITY_BATCH_SIZE` | `30` | `30` | 單次空房 API 請求包含的飯店數量，必須大於 0。 |
+| `TOYOKO_INN_DISCORD_WEBHOOK_URL` | 空值 | `https://discord.com/api/webhooks/...` | Discord Incoming Webhook URL；未設定或留空時仍會查詢，但略過通知。 |
+
+必填項目未設定時，應用程式會在啟動時列出所有缺漏並停止，不會執行查詢。
+
+飯店名稱採精確比對，包含空白、全形／半形及 `INN` 大小寫都必須與東橫 INN 官方飯店一覽頁相同。每次啟動或部署前都應重新確認日期，避免沿用已過期的執行期設定。
+
+> [!IMPORTANT]
+> `TOYOKO_INN_DISCORD_WEBHOOK_URL` 等同可向指定頻道發訊息的秘密權杖。請勿將實際網址寫入 `application.yml`、`env.example`、提交到 Git、貼在 issue，或輸出到公開 log。若曾外洩，請立即在 Discord 刪除該 Webhook 並建立新的 Webhook。
 
 ## 如何取得 Discord Webhook URL
 
@@ -77,27 +60,28 @@ export DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/你的_WEBHOOK_ID/�
 4. 選擇「建立 Webhook」（Create Webhook）或「新增 Webhook」（New Webhook）。
 5. 設定 Webhook 名稱，並選擇要接收空房通知的文字頻道。
 6. 點選「複製 Webhook URL」（Copy Webhook URL）。
-7. 將複製的 URL 設為 `DISCORD_WEBHOOK_URL`，不要貼入原始碼。
+7. 將複製的 URL 設為 `.env` 中的 `TOYOKO_INN_DISCORD_WEBHOOK_URL`，不要貼入原始碼。
 
 建立或管理 Webhook 需要伺服器中的「管理 Webhooks」權限。介面若有調整，請參考 [Discord 官方 Webhook 說明](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks)；Webhook 的技術細節可參考 [Discord Developer Documentation](https://docs.discord.com/developers/resources/webhook)。
 
-## 啟動應用程式
+## 使用 Docker Compose 啟動
 
-先確認 `application.yml` 中的飯店與日期，並視需要設定 `DISCORD_WEBHOOK_URL`，再於專案根目錄執行。
-
-Windows：
+確認 `.env` 後，在專案根目錄執行：
 
 ```powershell
-.\mvnw.cmd spring-boot:run
+docker compose up -d --build
+docker compose logs -f room-alert
 ```
 
-macOS／Linux：
+停止容器：
 
-```bash
-./mvnw spring-boot:run
+```powershell
+docker compose down
 ```
 
 本程式是非 Web 排程應用程式，不會開啟 HTTP 連接埠。啟動後排程會自動執行，不需要另外呼叫 endpoint。第一次成功查詢若已有空房，會立即發送通知；這可用來確認 Webhook 設定是否正確。
+
+`.env` 只在容器啟動時注入環境變數，不會寫入映像檔。
 
 ## 建置與測試
 
@@ -118,14 +102,20 @@ macOS／Linux：
 封裝完成後，可執行：
 
 ```powershell
+$env:TOYOKO_INN_CHECKIN_DATE = "2099-01-01"
+$env:TOYOKO_INN_CHECKOUT_DATE = "2099-01-02"
+$env:TOYOKO_INN_HOTEL_NAMES = "飯店A,飯店B"
+# 其他選填變數可視需要設定。
 java -jar target/toyoko-inn-room-alert-0.0.1-SNAPSHOT.jar
 ```
+
+`.env` 由 Docker Compose 自動讀取；直接執行 Maven 或 JAR 時不會自動載入該檔案，必須先在目前的 shell 設定必填環境變數及需要調整的選填變數。
 
 ## 常見問題
 
 ### 有查到空房但 Discord 沒收到通知
 
-- 確認 `DISCORD_WEBHOOK_URL` 已設定在啟動應用程式的同一個終端機或服務環境。
+- 確認 `TOYOKO_INN_DISCORD_WEBHOOK_URL` 已設定，且容器已在修改 `.env` 後重新建立。
 - 檢查 Webhook 是否仍存在，以及設定的頻道是否正確。
 - 確認執行環境可連線至 `discord.com`。
 - 查看 log 是否出現「尚未設定 Discord webhook URL」或 Discord HTTP 錯誤。
@@ -133,19 +123,20 @@ java -jar target/toyoko-inn-room-alert-0.0.1-SNAPSHOT.jar
 
 ### 應用程式啟動失敗
 
-- 確認使用 Java 25：`java -version`。
+- 直接執行 JAR 時，確認使用 Java 25：`java -version`。
+- 確認 `TOYOKO_INN_CHECKIN_DATE`、`TOYOKO_INN_CHECKOUT_DATE` 與 `TOYOKO_INN_HOTEL_NAMES` 都已設定。
 - 確認日期使用 `yyyy-MM-dd` 格式。
 - 確認入住日未早於執行當日。
 - 確認退房日期晚於入住日期。
-- 確認 `availability-batch-size` 大於 0。
-- 確認 `number-of-people` 與 `number-of-room` 都大於 0。
-- 確認 `smoking-type` 是 `all`、`smoking` 或 `noSmoking`。
+- 確認 `TOYOKO_INN_AVAILABILITY_BATCH_SIZE` 大於 0。
+- 確認 `TOYOKO_INN_NUMBER_OF_PEOPLE` 與 `TOYOKO_INN_NUMBER_OF_ROOM` 都大於 0。
+- 確認 `TOYOKO_INN_SMOKING_TYPE` 是 `all`、`smoking` 或 `noSmoking`。
 - 確認每個飯店名稱與東橫 INN 官方飯店一覽頁完全相同；程式會在 log 一次列出所有無法識別的名稱。
 - 確認執行環境能連線至東橫 INN 飯店一覽頁；無法取得目錄時程式會停止。
 
 ### 修改設定後沒有生效
 
-`DISCORD_WEBHOOK_URL` 與設定檔會在應用程式啟動時讀取。使用 `spring-boot:run` 時，修改後請重新啟動；若執行的是已封裝 JAR，修改 `src/main/resources/application.yml` 後必須重新建置 JAR。
+環境變數只會在應用程式啟動時讀取。修改 `.env` 後，請以 `docker compose up -d --force-recreate` 重新建立容器。
 
 ## 注意事項
 
