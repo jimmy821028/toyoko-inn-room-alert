@@ -4,8 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
+import org.springframework.boot.convert.ApplicationConversionService;
 
 class ToyokoInnConfigurationValidatorTests {
 
@@ -42,6 +46,25 @@ class ToyokoInnConfigurationValidatorTests {
                 .anyMatch(error -> error.contains("number-of-people"))
                 .anyMatch(error -> error.contains("number-of-room"))
                 .anyMatch(error -> error.contains("smoking-type"));
+    }
+
+    @Test
+    void reportsMissingRequiredSettingsWhenPlaceholdersAreEmpty() {
+        ToyokoInnProperties properties = new Binder(
+                List.of(new MapConfigurationPropertySource(Map.of(
+                        "toyoko-inn.checkin-date", "",
+                        "toyoko-inn.checkout-date", "",
+                        "toyoko-inn.hotel-names", ""))),
+                null,
+                ApplicationConversionService.getSharedInstance())
+                .bindOrCreate("toyoko-inn", ToyokoInnProperties.class);
+
+        List<String> errors = ToyokoInnConfigurationValidator.validate(properties, TODAY);
+
+        assertThat(errors).containsExactlyInAnyOrder(
+                "toyoko-inn.hotel-names 至少需要一個飯店名稱",
+                "toyoko-inn.checkin-date 為必填",
+                "toyoko-inn.checkout-date 為必填");
     }
 
     @Test

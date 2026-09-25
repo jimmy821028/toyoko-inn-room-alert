@@ -14,23 +14,21 @@ spring:
 
 toyoko-inn:
   # 查詢空房的執行間隔，使用 Spring Duration 格式，例如 30s、1m 或 1h。
-  poll-interval: 1m
-  # 入住日期，格式為 yyyy-MM-dd；可由環境變數 TOYOKO_CHECKIN_DATE 覆寫。
-  checkin-date: ${TOYOKO_CHECKIN_DATE:2027-04-01}
-  # 退房日期，格式為 yyyy-MM-dd，且必須晚於入住日期；可由環境變數 TOYOKO_CHECKOUT_DATE 覆寫。
-  checkout-date: ${TOYOKO_CHECKOUT_DATE:2027-04-22}
+  poll-interval: ${TOYOKO_INN_POLL_INTERVAL:1m}
+  # 入住日期（必填），格式為 yyyy-MM-dd；未設定時啟動驗證會失敗。
+  checkin-date: ${TOYOKO_INN_CHECKIN_DATE:}
+  # 退房日期（必填），格式為 yyyy-MM-dd，且必須晚於入住日期。
+  checkout-date: ${TOYOKO_INN_CHECKOUT_DATE:}
   # 每間房入住人數，必須大於 0。
-  number-of-people: 1
+  number-of-people: ${TOYOKO_INN_NUMBER_OF_PEOPLE:1}
   # 要預訂的房間數量，必須大於 0。
-  number-of-room: 1
+  number-of-room: ${TOYOKO_INN_NUMBER_OF_ROOM:1}
   # 吸菸條件：all 表示不限、smoking 表示吸菸房、noSmoking 表示禁菸房；只能使用這三種值。
-  smoking-type: noSmoking
-  # 要查詢空房的飯店名稱清單，名稱必須與東橫 INN 官網顯示的名稱完全一致。
-  hotel-names:
-    - 東横INN新横浜駅前本館
-    - 東横INN新横浜駅前新館
+  smoking-type: ${TOYOKO_INN_SMOKING_TYPE:noSmoking}
+  # 要查詢空房的飯店名稱（必填），以逗號分隔；名稱必須與東橫 INN 官網顯示的名稱完全一致。
+  hotel-names: ${TOYOKO_INN_HOTEL_NAMES:}
   # 每次呼叫東橫 INN 空房 API 時包含的飯店數量，必須大於 0。
-  availability-batch-size: 30
+  availability-batch-size: ${TOYOKO_INN_AVAILABILITY_BATCH_SIZE:30}
   discord:
-    # Discord Webhook URL；請透過環境變數 DISCORD_WEBHOOK_URL 提供，避免提交秘密資料。
-    webhook-url: ${DISCORD_WEBHOOK_URL:}
+    # Discord Webhook URL；只由環境變數提供，避免提交秘密資料。未設定時仍會查詢，但略過通知。
+    webhook-url: ${TOYOKO_INN_DISCORD_WEBHOOK_URL:}

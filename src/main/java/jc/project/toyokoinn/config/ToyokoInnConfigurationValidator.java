@@ -38,7 +38,7 @@ public class ToyokoInnConfigurationValidator implements ApplicationRunner {
         List<String> errors = validate(properties, LocalDate.now(APPLICATION_TIME_ZONE));
         errors.forEach(error -> log.error("設定錯誤：{}", error));
         if (!errors.isEmpty()) {
-            throw new IllegalStateException("application.yml 包含無效設定");
+            throw new IllegalStateException("toyoko-inn 設定無效，請檢查對應的 TOYOKO_INN_* 環境變數");
         }
     }
 

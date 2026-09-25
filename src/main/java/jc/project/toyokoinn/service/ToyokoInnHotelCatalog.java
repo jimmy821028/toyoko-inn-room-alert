@@ -47,7 +47,7 @@ public class ToyokoInnHotelCatalog implements ApplicationRunner {
     }
 
     /**
-     * 啟動時取得官方飯店目錄，並一次驗證 application.yml 中的所有飯店名稱。
+     * 啟動時取得官方飯店目錄，並一次驗證設定中的所有飯店名稱。
      *
      * @param args 應用程式啟動參數
      */
@@ -64,19 +64,19 @@ public class ToyokoInnHotelCatalog implements ApplicationRunner {
                 .distinct()
                 .toList();
         if (configuredHotelNames.isEmpty()) {
-            log.error("application.yml 未設定 toyoko-inn.hotel-names，無法開始查詢空房");
+            log.error("未設定 toyoko-inn.hotel-names（TOYOKO_INN_HOTEL_NAMES），無法開始查詢空房");
             throw new IllegalStateException("未設定要監控的飯店名稱");
         }
 
         Map<String, String> hotelCodesByName = fetchHotelCodesByName();
         HotelResolution resolution = resolveHotelNames(hotelCodesByName, configuredHotelNames);
         resolution.unknownNames().forEach(name -> log.error(
-                "找不到飯店名稱「{}」對應的飯店代碼，請確認 application.yml 中的名稱完全正確", name));
+                "找不到飯店名稱「{}」對應的飯店代碼，請確認 TOYOKO_INN_HOTEL_NAMES 中的名稱完全正確", name));
 
         if (!resolution.unknownNames().isEmpty()) {
             log.error("共有 {} 個飯店名稱無法解析，停止應用程式，不會執行空房查詢",
                     resolution.unknownNames().size());
-            throw new IllegalStateException("application.yml 包含無法識別的飯店名稱");
+            throw new IllegalStateException("TOYOKO_INN_HOTEL_NAMES 包含無法識別的飯店名稱");
         }
 
         resolvedHotels = Collections.unmodifiableMap(
