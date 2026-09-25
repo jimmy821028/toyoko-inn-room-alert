@@ -12,7 +12,7 @@
 	<artifactId>toyoko-inn-room-alert</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>東橫 INN 空房通知</name>
-	<description>定期查詢東橫 INN 空房並透過 Discord 發送通知</description>
+	<description>定期查詢東橫 INN 空房並透過 Discord 或 Email 發送通知</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -39,6 +39,11 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-restclient</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
 
 		<dependency>

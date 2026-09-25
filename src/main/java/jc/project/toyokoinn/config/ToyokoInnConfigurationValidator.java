@@ -6,6 +6,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import jakarta.mail.internet.AddressException;
+import jakarta.mail.internet.InternetAddress;
+
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
@@ -74,6 +77,46 @@ public class ToyokoInnConfigurationValidator implements ApplicationRunner {
                 || !ALLOWED_SMOKING_TYPES.contains(properties.getSmokingType())) {
             errors.add("toyoko-inn.smoking-type 只能是 all、smoking 或 noSmoking");
         }
+        if (properties.getEmail().isEnabled()) {
+            validateEmail(properties.getEmail(), errors);
+        }
         return errors;
+    }
+
+    private static void validateEmail(ToyokoInnProperties.Email email, List<String> errors) {
+        List<String> recipients = email.getTo() == null ? List.of() : email.getTo().stream()
+                .filter(address -> address != null && !address.isBlank())
+                .map(String::strip)
+                .toList();
+        if (recipients.isEmpty()) {
+            errors.add("toyoko-inn.email.to 在啟用 Email 通知時至少需要一個收件地址");
+        }
+        recipients.stream()
+                .filter(address -> !isValidEmailAddress(address))
+                .forEach(address -> errors.add("toyoko-inn.email.to 包含無效的電子郵件地址：" + address));
+        if (email.getSmtpHost() == null || email.getSmtpHost().isBlank()) {
+            errors.add("toyoko-inn.email.smtp-host 在啟用 Email 通知時為必填");
+        }
+        if (email.getSmtpPort() < 1 || email.getSmtpPort() > 65535) {
+            errors.add("toyoko-inn.email.smtp-port 必須介於 1 到 65535");
+        }
+        if (email.getUsername() == null || email.getUsername().isBlank()) {
+            errors.add("toyoko-inn.email.username 在啟用 Email 通知時為必填");
+        } else if (!isValidEmailAddress(email.getUsername().strip())) {
+            errors.add("toyoko-inn.email.username 會作為寄件地址，必須是有效的電子郵件地址");
+        }
+        if (email.getPassword() == null || email.getPassword().isBlank()) {
+            errors.add("toyoko-inn.email.password 在啟用 Email 通知時為必填");
+        }
+    }
+
+    private static boolean isValidEmailAddress(String address) {
+        try {
+            InternetAddress internetAddress = new InternetAddress(address, true);
+            internetAddress.validate();
+            return internetAddress.getPersonal() == null && address.equals(internetAddress.getAddress());
+        } catch (AddressException e) {
+            return false;
+        }
     }
 }

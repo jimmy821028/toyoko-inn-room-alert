@@ -68,6 +68,55 @@ class ToyokoInnConfigurationValidatorTests {
     }
 
     @Test
+    void ignoresEmptyEmailSettingsWhenEmailIsDisabled() {
+        ToyokoInnProperties properties = validProperties();
+        properties.getEmail().setEnabled(false);
+        properties.getEmail().setSmtpPort(0);
+
+        assertThat(ToyokoInnConfigurationValidator.validate(properties, TODAY)).isEmpty();
+    }
+
+    @Test
+    void acceptsValidEmailSettings() {
+        ToyokoInnProperties properties = validProperties();
+        enableEmail(properties);
+
+        assertThat(ToyokoInnConfigurationValidator.validate(properties, TODAY)).isEmpty();
+    }
+
+    @Test
+    void returnsEveryEmailErrorAtOnceWhenEmailIsEnabled() {
+        ToyokoInnProperties properties = validProperties();
+        ToyokoInnProperties.Email email = properties.getEmail();
+        email.setEnabled(true);
+        email.setTo(List.of("receiver@example.com", "not-an-address"));
+        email.setSmtpHost(" ");
+        email.setSmtpPort(70000);
+        email.setUsername("sender");
+        email.setPassword("");
+
+        List<String> errors = ToyokoInnConfigurationValidator.validate(properties, TODAY);
+
+        assertThat(errors)
+                .hasSize(5)
+                .anyMatch(error -> error.contains("email.to 包含無效的電子郵件地址：not-an-address"))
+                .anyMatch(error -> error.contains("email.smtp-host"))
+                .anyMatch(error -> error.contains("email.smtp-port"))
+                .anyMatch(error -> error.contains("email.username"))
+                .anyMatch(error -> error.contains("email.password"));
+    }
+
+    @Test
+    void requiresRecipientWhenEmailIsEnabled() {
+        ToyokoInnProperties properties = validProperties();
+        enableEmail(properties);
+        properties.getEmail().setTo(List.of(" "));
+
+        assertThat(ToyokoInnConfigurationValidator.validate(properties, TODAY))
+                .containsExactly("toyoko-inn.email.to 在啟用 Email 通知時至少需要一個收件地址");
+    }
+
+    @Test
     void acceptsEverySupportedSmokingType() {
         for (String smokingType : List.of("all", "smoking", "noSmoking")) {
             ToyokoInnProperties properties = validProperties();
@@ -89,5 +138,13 @@ class ToyokoInnConfigurationValidatorTests {
         properties.setNumberOfRoom(1);
         properties.setSmokingType("noSmoking");
         return properties;
+    }
+
+    private void enableEmail(ToyokoInnProperties properties) {
+        ToyokoInnProperties.Email email = properties.getEmail();
+        email.setEnabled(true);
+        email.setTo(List.of("receiver@example.com", " other@example.com"));
+        email.setUsername("sender@example.com");
+        email.setPassword("app-password");
     }
 }

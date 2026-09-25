@@ -18,6 +18,7 @@ public class ToyokoInnProperties {
     private int availabilityBatchSize = 30;
     private boolean initializeCatalogOnStartup = true;
     private Discord discord = new Discord();
+    private Email email = new Email();
 
     public List<String> getHotelNames() {
         return hotelNames;
@@ -91,6 +92,14 @@ public class ToyokoInnProperties {
         this.discord = discord;
     }
 
+    public Email getEmail() {
+        return email;
+    }
+
+    public void setEmail(Email email) {
+        this.email = email;
+    }
+
     public static class Discord {
 
         private String webhookUrl = "";
@@ -101,6 +110,64 @@ public class ToyokoInnProperties {
 
         public void setWebhookUrl(String webhookUrl) {
             this.webhookUrl = webhookUrl;
+        }
+    }
+
+    public static class Email {
+
+        private boolean enabled;
+        private List<String> to = new ArrayList<>();
+        private String smtpHost = "smtp.gmail.com";
+        private int smtpPort = 587;
+        private String username = "";
+        private String password = "";
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public List<String> getTo() {
+            return to;
+        }
+
+        public void setTo(List<String> to) {
+            this.to = to;
+        }
+
+        public String getSmtpHost() {
+            return smtpHost;
+        }
+
+        public void setSmtpHost(String smtpHost) {
+            this.smtpHost = smtpHost;
+        }
+
+        public int getSmtpPort() {
+            return smtpPort;
+        }
+
+        public void setSmtpPort(int smtpPort) {
+            this.smtpPort = smtpPort;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
         }
     }
 }

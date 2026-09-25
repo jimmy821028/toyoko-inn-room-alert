@@ -11,6 +11,23 @@ spring:
     scheduling:
       pool:
         size: 1
+  mail:
+    # SMTP 連線設定沿用 toyoko-inn.email，實際值由 TOYOKO_INN_EMAIL_* 環境變數提供。
+    host: ${toyoko-inn.email.smtp-host}
+    port: ${toyoko-inn.email.smtp-port}
+    username: ${toyoko-inn.email.username}
+    password: ${toyoko-inn.email.password}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 10000
+          timeout: 20000
+          writetimeout: 20000
 
 toyoko-inn:
   # 查詢空房的執行間隔，使用 Spring Duration 格式，例如 30s、1m 或 1h。
@@ -30,5 +47,17 @@ toyoko-inn:
   # 每次呼叫東橫 INN 空房 API 時包含的飯店數量，必須大於 0。
   availability-batch-size: ${TOYOKO_INN_AVAILABILITY_BATCH_SIZE:30}
   discord:
-    # Discord Webhook URL；只由環境變數提供，避免提交秘密資料。未設定時仍會查詢，但略過通知。
+    # Discord Webhook URL；只由環境變數提供，避免提交秘密資料。未設定時停用 Discord 通知。
     webhook-url: ${TOYOKO_INN_DISCORD_WEBHOOK_URL:}
+  email:
+    # 是否啟用 Email 通知：true 或 false。
+    enabled: ${TOYOKO_INN_EMAIL_ENABLED:false}
+    # 收件地址，以逗號分隔；啟用 Email 通知時必填。
+    to: ${TOYOKO_INN_EMAIL_TO:}
+    # SMTP 伺服器主機與連接埠；連線一律使用 STARTTLS。
+    smtp-host: ${TOYOKO_INN_EMAIL_SMTP_HOST:smtp.gmail.com}
+    smtp-port: ${TOYOKO_INN_EMAIL_SMTP_PORT:587}
+    # SMTP 登入帳號，同時作為寄件地址；啟用 Email 通知時必填。
+    username: ${TOYOKO_INN_EMAIL_USERNAME:}
+    # SMTP 登入密碼（Gmail 請使用應用程式密碼）；只由環境變數提供，避免提交秘密資料。
+    password: ${TOYOKO_INN_EMAIL_PASSWORD:}

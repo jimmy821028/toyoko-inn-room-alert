@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
@@ -23,6 +25,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 import jc.project.toyokoinn.config.ToyokoInnProperties;
 import jc.project.toyokoinn.model.HotelsAvailabilitiesPrices;
 import jc.project.toyokoinn.model.Room;
+import jc.project.toyokoinn.model.RoomAlert;
+import jc.project.toyokoinn.service.ToyokoInnEmailNotifier;
 import jc.project.toyokoinn.service.ToyokoInnHotelCatalog;
 import lombok.extern.slf4j.Slf4j;
 
@@ -39,27 +43,31 @@ public class ToyokoInnRoomAlertJob {
 
     private final RestClient restClient;
     private final ToyokoInnHotelCatalog hotelCatalog;
+    private final ToyokoInnEmailNotifier emailNotifier;
     private final String discordWebhookUrl;
+    private final boolean discordEnabled;
+    private final boolean emailEnabled;
     private final LocalDate checkinDate;
     private final LocalDate checkoutDate;
     private final int numberOfPeople;
     private final int numberOfRoom;
     private final String smokingType;
     private final int availabilityBatchSize;
-    private final Map<String, Integer> previousPrices = new HashMap<>();
-
-    private boolean hasPreviousResult;
+    private final NotificationState discordState = new NotificationState();
+    private final NotificationState emailState = new NotificationState();
 
     /**
      * 建立東橫 INN 空房輪詢工作，並設定查詢與通知所需的參數。
      *
      * @param restClientBuilder REST 用戶端建構器
      * @param hotelCatalog 已驗證的飯店目錄
+     * @param emailNotifier Email 通知寄送器
      * @param properties 東橫 INN 查詢設定
      */
     public ToyokoInnRoomAlertJob(
             RestClient.Builder restClientBuilder,
             ToyokoInnHotelCatalog hotelCatalog,
+            ToyokoInnEmailNotifier emailNotifier,
             ToyokoInnProperties properties) {
         this.restClient = restClientBuilder.clone()
                 .defaultHeader("User-Agent",
@@ -70,17 +78,26 @@ public class ToyokoInnRoomAlertJob {
                 .defaultHeader("Referer", "https://www.toyoko-inn.com/ja/search")
                 .build();
         this.hotelCatalog = hotelCatalog;
+        this.emailNotifier = emailNotifier;
         this.discordWebhookUrl = properties.getDiscord().getWebhookUrl();
+        this.discordEnabled = discordWebhookUrl != null && !discordWebhookUrl.isBlank();
+        this.emailEnabled = properties.getEmail().isEnabled();
         this.checkinDate = properties.getCheckinDate();
         this.checkoutDate = properties.getCheckoutDate();
         this.numberOfPeople = properties.getNumberOfPeople();
         this.numberOfRoom = properties.getNumberOfRoom();
         this.smokingType = properties.getSmokingType();
         this.availabilityBatchSize = properties.getAvailabilityBatchSize();
+
+        if (!discordEnabled && !emailEnabled) {
+            log.warn("未設定 Discord Webhook 且未啟用 Email 通知，查到空房時不會發送任何通知");
+        } else {
+            log.info("已啟用的通知管道：Discord={}，Email={}", discordEnabled, emailEnabled);
+        }
     }
 
     /**
-     * 定期查詢東橫 INN 空房，並將符合通知條件的房間傳送至 Discord。
+     * 定期查詢東橫 INN 空房，並將符合通知條件的房間傳送至已啟用的通知管道。
      */
     @Scheduled(fixedRateString = "${toyoko-inn.poll-interval:1m}")
     public synchronized void runCheckingToyokoInnRoomJob() {
@@ -95,15 +112,35 @@ public class ToyokoInnRoomAlertJob {
         }
 
         List<Room> rooms = roomsResult.get();
-        List<Room> roomsToNotify = findRoomsToNotify(rooms, previousPrices, hasPreviousResult);
-        Set<String> successfullyNotifiedCodes = notifyDiscord(roomsToNotify);
-        updatePreviousPrices(rooms, roomsToNotify, successfullyNotifiedCodes, previousPrices);
-        hasPreviousResult = true;
+        if (discordEnabled) {
+            processNotifications("Discord", discordState, rooms, this::notifyDiscord);
+        }
+        if (emailEnabled) {
+            processNotifications("Email", emailState, rooms, this::notifyEmail);
+        }
+    }
+
+    /**
+     * 依單一通知管道自己的價格狀態決定通知對象，並只提交該管道已成功通知的價格。
+     *
+     * @param channelName 通知管道名稱
+     * @param state 該通知管道的價格狀態
+     * @param rooms 本次查詢結果
+     * @param notifier 發送通知並回傳成功飯店代碼的處理器
+     */
+    private void processNotifications(String channelName, NotificationState state, List<Room> rooms,
+            BiFunction<List<Room>, NotificationState, Set<String>> notifier) {
+        List<Room> roomsToNotify = findRoomsToNotify(rooms, state.previousPrices, state.hasPreviousResult);
+        Set<String> successfullyNotifiedCodes = roomsToNotify.isEmpty()
+                ? Set.of()
+                : notifier.apply(roomsToNotify, state);
+        updatePreviousPrices(rooms, roomsToNotify, successfullyNotifiedCodes, state.previousPrices);
+        state.hasPreviousResult = true;
 
         if (roomsToNotify.isEmpty()) {
-            log.info("未有符合通知條件的空房");
+            log.info("{}：未有符合通知條件的空房", channelName);
         } else if (successfullyNotifiedCodes.size() < roomsToNotify.size()) {
-            log.warn("本次有 {} 筆通知未成功，保留原價格狀態並於下次輪詢重試",
+            log.warn("{}：本次有 {} 筆通知未成功，保留原價格狀態並於下次輪詢重試", channelName,
                     roomsToNotify.size() - successfullyNotifiedCodes.size());
         }
     }
@@ -235,16 +272,10 @@ public class ToyokoInnRoomAlertJob {
      * 透過 Discord Webhook 發送空房通知。
      *
      * @param rooms 要通知的房間清單
+     * @param state Discord 通知管道的價格狀態
+     * @return 已成功通知的飯店代碼
      */
-    private Set<String> notifyDiscord(List<Room> rooms) {
-        if (rooms.isEmpty()) {
-            return Set.of();
-        }
-        if (discordWebhookUrl.isBlank()) {
-            log.warn("尚未設定 Discord webhook URL，略過 {} 筆空房通知", rooms.size());
-            return Set.of();
-        }
-
+    private Set<String> notifyDiscord(List<Room> rooms, NotificationState state) {
         Set<String> successfullyNotifiedCodes = new LinkedHashSet<>();
         for (List<Room> batch : createDiscordBatches(rooms)) {
             if (sendDiscordBatch(batch)) {
@@ -252,6 +283,45 @@ public class ToyokoInnRoomAlertJob {
             }
         }
         return successfullyNotifiedCodes;
+    }
+
+    /**
+     * 將本輪所有需通知的飯店合併為一封 Email 寄出。
+     *
+     * @param rooms 要通知的房間清單
+     * @param state Email 通知管道的價格狀態
+     * @return 寄送成功時為全部飯店代碼，失敗時為空集合
+     */
+    private Set<String> notifyEmail(List<Room> rooms, NotificationState state) {
+        List<RoomAlert> alerts = createRoomAlerts(rooms, state.previousPrices, state.hasPreviousResult,
+                this::createBookingUrl);
+        if (!emailNotifier.send(alerts)) {
+            return Set.of();
+        }
+        return rooms.stream()
+                .map(Room::getCode)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /**
+     * 依通知管道的前次價格，建立 Email 需要的通知原因與訂房資料。
+     *
+     * @param rooms 要通知的房間清單
+     * @param previousPrices 該通知管道前次記錄的最低價格
+     * @param hasPreviousResult 該通知管道是否已有成功的歷史查詢結果
+     * @param bookingUrlFactory 由飯店代碼建立訂房網址的函式
+     * @return Email 通知資料
+     */
+    static List<RoomAlert> createRoomAlerts(List<Room> rooms, Map<String, Integer> previousPrices,
+            boolean hasPreviousResult, Function<String, String> bookingUrlFactory) {
+        return rooms.stream()
+                .map(room -> new RoomAlert(
+                        room.getName(),
+                        room.getLowestPrice(),
+                        previousPrices.getOrDefault(room.getCode(), 0),
+                        !hasPreviousResult,
+                        bookingUrlFactory.apply(room.getCode())))
+                .toList();
     }
 
     static List<List<Room>> createDiscordBatches(List<Room> rooms) {
@@ -371,5 +441,14 @@ public class ToyokoInnRoomAlertJob {
                         numberOfPeople,
                         numberOfRoom,
                         smokingType);
+    }
+
+    /**
+     * 單一通知管道各自保存的價格狀態，讓某個管道失敗重試時不會重複通知其他管道。
+     */
+    private static final class NotificationState {
+
+        private final Map<String, Integer> previousPrices = new HashMap<>();
+        private boolean hasPreviousResult;
     }
 }

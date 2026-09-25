@@ -11,6 +11,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import jc.project.toyokoinn.model.Room;
+import jc.project.toyokoinn.model.RoomAlert;
 
 class ToyokoInnRoomAlertJobTests {
 
@@ -108,6 +109,37 @@ class ToyokoInnRoomAlertJobTests {
                 "00051", 10_000,
                 "00061", 11_000,
                 "00120", 0));
+    }
+
+    /**
+     * 驗證 Email 通知資料會依該管道的前次價格判斷通知原因。
+     */
+    @Test
+    void createsRoomAlertsWithReasonFromChannelPrices() {
+        Room priceDropRoom = room("00051", 10_000);
+        Room newlyAvailableRoom = room("00061", 9_000);
+
+        List<RoomAlert> alerts = ToyokoInnRoomAlertJob.createRoomAlerts(
+                List.of(priceDropRoom, newlyAvailableRoom),
+                Map.of("00051", 12_000, "00061", 0),
+                true,
+                code -> "https://example.com/" + code);
+
+        assertThat(alerts).containsExactly(
+                new RoomAlert("00051", 10_000, 12_000, false, "https://example.com/00051"),
+                new RoomAlert("00061", 9_000, 0, false, "https://example.com/00061"));
+        assertThat(alerts).extracting(RoomAlert::reason).containsExactly("價格下降", "新釋出空房");
+    }
+
+    /**
+     * 驗證 Email 管道首次成功查詢時，通知原因標示為啟動後首次查詢。
+     */
+    @Test
+    void marksRoomAlertsAsInitialCheckBeforeFirstSuccessfulResult() {
+        List<RoomAlert> alerts = ToyokoInnRoomAlertJob.createRoomAlerts(
+                List.of(room("00051", 10_000)), Map.of(), false, code -> "https://example.com/" + code);
+
+        assertThat(alerts).extracting(RoomAlert::reason).containsExactly("啟動後首次查詢");
     }
 
     /**
