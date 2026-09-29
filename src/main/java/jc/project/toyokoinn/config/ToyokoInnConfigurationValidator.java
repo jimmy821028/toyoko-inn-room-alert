@@ -67,6 +67,9 @@ public class ToyokoInnConfigurationValidator implements ApplicationRunner {
         if (properties.getAvailabilityBatchSize() <= 0) {
             errors.add("toyoko-inn.availability-batch-size 必須大於 0");
         }
+        if (properties.getMaxNotificationPrice() < 0) {
+            errors.add("toyoko-inn.max-notification-price 不得為負數");
+        }
         if (properties.getNumberOfPeople() <= 0) {
             errors.add("toyoko-inn.number-of-people 必須大於 0");
         }

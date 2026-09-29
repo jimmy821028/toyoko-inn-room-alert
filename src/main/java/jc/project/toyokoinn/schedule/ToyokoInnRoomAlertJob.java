@@ -53,6 +53,7 @@ public class ToyokoInnRoomAlertJob {
     private final int numberOfRoom;
     private final String smokingType;
     private final int availabilityBatchSize;
+    private final int maxNotificationPrice;
     private final NotificationState discordState = new NotificationState();
     private final NotificationState emailState = new NotificationState();
 
@@ -88,6 +89,7 @@ public class ToyokoInnRoomAlertJob {
         this.numberOfRoom = properties.getNumberOfRoom();
         this.smokingType = properties.getSmokingType();
         this.availabilityBatchSize = properties.getAvailabilityBatchSize();
+        this.maxNotificationPrice = properties.getMaxNotificationPrice();
 
         if (!discordEnabled && !emailEnabled) {
             log.warn("未設定 Discord Webhook 且未啟用 Email 通知，查到空房時不會發送任何通知");
@@ -130,7 +132,8 @@ public class ToyokoInnRoomAlertJob {
      */
     private void processNotifications(String channelName, NotificationState state, List<Room> rooms,
             BiFunction<List<Room>, NotificationState, Set<String>> notifier) {
-        List<Room> roomsToNotify = findRoomsToNotify(rooms, state.previousPrices, state.hasPreviousResult);
+        List<Room> roomsToNotify = findRoomsToNotify(rooms, state.previousPrices, state.hasPreviousResult,
+                maxNotificationPrice);
         Set<String> successfullyNotifiedCodes = roomsToNotify.isEmpty()
                 ? Set.of()
                 : notifier.apply(roomsToNotify, state);
@@ -146,18 +149,20 @@ public class ToyokoInnRoomAlertJob {
     }
 
     /**
-     * 根據本次與前次價格，篩選首次有空房或價格下降的飯店。
+     * 根據本次與前次價格，篩選首次有空房或價格下降，且價格未超過通知上限的飯店。
      *
      * @param rooms 本次查詢到的房間資料
      * @param previousPrices 前次依飯店代碼記錄的最低價格
      * @param hasPreviousResult 是否已有成功的歷史查詢結果
+     * @param maxNotificationPrice 通知價格上限，零表示不限制
      * @return 符合通知條件的房間清單
      */
     static List<Room> findRoomsToNotify(List<Room> rooms, Map<String, Integer> previousPrices,
-            boolean hasPreviousResult) {
+            boolean hasPreviousResult, int maxNotificationPrice) {
         if (!hasPreviousResult) {
             return rooms.stream()
                     .filter(room -> room.getLowestPrice() > 0)
+                    .filter(room -> isWithinNotificationPrice(room.getLowestPrice(), maxNotificationPrice))
                     .toList();
         }
 
@@ -165,7 +170,19 @@ public class ToyokoInnRoomAlertJob {
                 .filter(room -> isNotifiablePriceChange(
                         previousPrices.getOrDefault(room.getCode(), 0),
                         room.getLowestPrice()))
+                .filter(room -> isWithinNotificationPrice(room.getLowestPrice(), maxNotificationPrice))
                 .toList();
+    }
+
+    /**
+     * 判斷目前價格是否未超過通知價格上限。
+     *
+     * @param currentPrice 目前最低價格
+     * @param maxNotificationPrice 通知價格上限，零表示不限制
+     * @return 價格小於或等於上限，或未設定上限時回傳 {@code true}
+     */
+    static boolean isWithinNotificationPrice(int currentPrice, int maxNotificationPrice) {
+        return maxNotificationPrice == 0 || currentPrice <= maxNotificationPrice;
     }
 
     /**

@@ -16,6 +16,7 @@ public class ToyokoInnProperties {
     private int numberOfRoom = 1;
     private String smokingType = "noSmoking";
     private int availabilityBatchSize = 30;
+    private int maxNotificationPrice;
     private boolean initializeCatalogOnStartup = true;
     private Discord discord = new Discord();
     private Email email = new Email();
@@ -74,6 +75,14 @@ public class ToyokoInnProperties {
 
     public void setAvailabilityBatchSize(int availabilityBatchSize) {
         this.availabilityBatchSize = availabilityBatchSize;
+    }
+
+    public int getMaxNotificationPrice() {
+        return maxNotificationPrice;
+    }
+
+    public void setMaxNotificationPrice(int maxNotificationPrice) {
+        this.maxNotificationPrice = maxNotificationPrice;
     }
 
     public boolean isInitializeCatalogOnStartup() {

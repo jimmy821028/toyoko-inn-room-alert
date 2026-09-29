@@ -24,7 +24,7 @@ class ToyokoInnRoomAlertJobTests {
         Room availableRoom = room("00061", 12_000);
 
         List<Room> result = ToyokoInnRoomAlertJob.findRoomsToNotify(
-                List.of(unavailableRoom, availableRoom), Map.of(), false);
+                List.of(unavailableRoom, availableRoom), Map.of(), false, 0);
 
         assertThat(result).containsExactly(availableRoom);
     }
@@ -37,7 +37,7 @@ class ToyokoInnRoomAlertJobTests {
         Room room = room("00051", 12_000);
 
         List<Room> result = ToyokoInnRoomAlertJob.findRoomsToNotify(
-                List.of(room), Map.of("00051", 0), true);
+                List.of(room), Map.of("00051", 0), true, 0);
 
         assertThat(result).containsExactly(room);
     }
@@ -50,7 +50,7 @@ class ToyokoInnRoomAlertJobTests {
         Room room = room("00051", 10_000);
 
         List<Room> result = ToyokoInnRoomAlertJob.findRoomsToNotify(
-                List.of(room), Map.of("00051", 12_000), true);
+                List.of(room), Map.of("00051", 12_000), true, 0);
 
         assertThat(result).containsExactly(room);
     }
@@ -69,7 +69,7 @@ class ToyokoInnRoomAlertJobTests {
                 "00061", 12_000,
                 "00120", 12_000);
 
-        List<Room> result = ToyokoInnRoomAlertJob.findRoomsToNotify(rooms, previousPrices, true);
+        List<Room> result = ToyokoInnRoomAlertJob.findRoomsToNotify(rooms, previousPrices, true, 0);
 
         assertThat(result).isEmpty();
     }
@@ -81,9 +81,63 @@ class ToyokoInnRoomAlertJobTests {
     void treatsNewHotelCodeAsPreviouslyUnavailable() {
         Room room = room("00999", 9_000);
 
-        List<Room> result = ToyokoInnRoomAlertJob.findRoomsToNotify(List.of(room), Map.of(), true);
+        List<Room> result = ToyokoInnRoomAlertJob.findRoomsToNotify(List.of(room), Map.of(), true, 0);
 
         assertThat(result).containsExactly(room);
+    }
+
+    /**
+     * 驗證首次成功查詢時，只通知價格小於或等於通知上限的飯店。
+     */
+    @Test
+    void notifiesOnlyRoomsWithinMaxPriceOnFirstSuccessfulCheck() {
+        Room cheaperRoom = room("00051", 9_000);
+        Room equalRoom = room("00061", 10_000);
+        Room expensiveRoom = room("00120", 10_001);
+
+        List<Room> result = ToyokoInnRoomAlertJob.findRoomsToNotify(
+                List.of(cheaperRoom, equalRoom, expensiveRoom), Map.of(), false, 10_000);
+
+        assertThat(result).containsExactly(cheaperRoom, equalRoom);
+    }
+
+    /**
+     * 驗證新釋出空房或降價後的價格仍高於通知上限時不會觸發通知。
+     */
+    @Test
+    void doesNotNotifyPriceChangeAboveMaxPrice() {
+        Room newlyAvailableRoom = room("00051", 12_000);
+        Room droppedRoom = room("00061", 11_000);
+        Room droppedWithinLimitRoom = room("00120", 10_000);
+        Map<String, Integer> previousPrices = Map.of(
+                "00051", 0,
+                "00061", 13_000,
+                "00120", 13_000);
+
+        List<Room> result = ToyokoInnRoomAlertJob.findRoomsToNotify(
+                List.of(newlyAvailableRoom, droppedRoom, droppedWithinLimitRoom), previousPrices, true, 10_000);
+
+        assertThat(result).containsExactly(droppedWithinLimitRoom);
+    }
+
+    /**
+     * 驗證價格高於上限而未通知的飯店仍會提交價格，之後降至上限內時可再觸發通知。
+     */
+    @Test
+    void notifiesAfterPriceAboveMaxDropsWithinLimit() {
+        Map<String, Integer> previousPrices = new HashMap<>();
+        List<Room> firstRooms = List.of(room("00051", 12_000));
+        List<Room> firstRoomsToNotify = ToyokoInnRoomAlertJob.findRoomsToNotify(
+                firstRooms, previousPrices, false, 10_000);
+        ToyokoInnRoomAlertJob.updatePreviousPrices(firstRooms, firstRoomsToNotify, Set.of(), previousPrices);
+
+        Room droppedRoom = room("00051", 9_500);
+        List<Room> result = ToyokoInnRoomAlertJob.findRoomsToNotify(
+                List.of(droppedRoom), previousPrices, true, 10_000);
+
+        assertThat(firstRoomsToNotify).isEmpty();
+        assertThat(previousPrices).containsEntry("00051", 12_000);
+        assertThat(result).containsExactly(droppedRoom);
     }
 
     /**

@@ -7,6 +7,7 @@
 - 預設每 1 分鐘查詢一次東橫 INN API。
 - 第一次成功查詢時，通知所有目前有空房的飯店。
 - 後續查詢只在飯店從無房變為有房，或最低價格下降時通知。
+- 設定通知價格上限時，上述條件成立且最低價格小於或等於上限才通知；高於上限的價格仍會記錄，之後降至上限內時會觸發降價通知。
 - Discord 通知包含飯店名稱、最低價格及帶入入住／退房日期的訂房連結。
 - Email 通知將同一輪的所有飯店合併為一封 HTML 信件，另附純文字版本；內容包含查詢條件、通知原因（啟動後首次查詢、新釋出空房或價格下降）、最低價格、降價前價格及訂房按鈕。
 - 查詢失敗時保留前一次狀態，避免因暫時性的 API 錯誤產生錯誤通知。
@@ -46,6 +47,7 @@ Copy-Item env.example .env
 | `TOYOKO_INN_NUMBER_OF_ROOM` | `1` | `1` | 要預訂的房間數量，必須大於 0。 |
 | `TOYOKO_INN_SMOKING_TYPE` | `noSmoking` | `all` | 只能是 `all`、`smoking` 或 `noSmoking`。 |
 | `TOYOKO_INN_AVAILABILITY_BATCH_SIZE` | `30` | `30` | 單次空房 API 請求包含的飯店數量，必須大於 0。 |
+| `TOYOKO_INN_MAX_NOTIFICATION_PRICE` | `0` | `10000` | 通知價格上限；最低價格小於或等於此值才通知，`0` 表示不限制，不得為負數。 |
 | `TOYOKO_INN_DISCORD_WEBHOOK_URL` | 空值 | `https://discord.com/api/webhooks/...` | Discord Incoming Webhook URL；未設定或留空時停用 Discord 通知。 |
 | `TOYOKO_INN_EMAIL_ENABLED` | `false` | `true` | 是否啟用 Email 通知。 |
 | `TOYOKO_INN_EMAIL_TO` | 啟用 Email 時必填 | `a@example.com,b@example.com` | 收件地址，以半形逗號分隔。 |
@@ -159,6 +161,7 @@ java -jar target/toyoko-inn-room-alert-0.0.1-SNAPSHOT.jar
 - 確認入住日未早於執行當日。
 - 確認退房日期晚於入住日期。
 - 確認 `TOYOKO_INN_AVAILABILITY_BATCH_SIZE` 大於 0。
+- 確認 `TOYOKO_INN_MAX_NOTIFICATION_PRICE` 不是負數。
 - 確認 `TOYOKO_INN_NUMBER_OF_PEOPLE` 與 `TOYOKO_INN_NUMBER_OF_ROOM` 都大於 0。
 - 確認 `TOYOKO_INN_SMOKING_TYPE` 是 `all`、`smoking` 或 `noSmoking`。
 - 啟用 Email 通知時，確認收件地址、SMTP 帳號與密碼都已設定，且收件地址與帳號都是有效的電子郵件地址。

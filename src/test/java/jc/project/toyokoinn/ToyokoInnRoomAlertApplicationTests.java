@@ -28,6 +28,7 @@ class ToyokoInnRoomAlertApplicationTests {
         assertThat(properties.getNumberOfRoom()).isEqualTo(1);
         assertThat(properties.getSmokingType()).isEqualTo("noSmoking");
         assertThat(properties.getAvailabilityBatchSize()).isEqualTo(30);
+        assertThat(properties.getMaxNotificationPrice()).isZero();
         assertThat(properties.getDiscord().getWebhookUrl()).isEmpty();
     }
 

@@ -34,15 +34,17 @@ class ToyokoInnConfigurationValidatorTests {
         properties.setNumberOfPeople(0);
         properties.setNumberOfRoom(-1);
         properties.setSmokingType("invalid");
+        properties.setMaxNotificationPrice(-1);
 
         List<String> errors = ToyokoInnConfigurationValidator.validate(properties, TODAY);
 
         assertThat(errors)
-                .hasSize(7)
+                .hasSize(8)
                 .anyMatch(error -> error.contains("hotel-names"))
                 .anyMatch(error -> error.contains("checkin-date 不得早於今天"))
                 .anyMatch(error -> error.contains("checkout-date 必須晚於"))
                 .anyMatch(error -> error.contains("availability-batch-size"))
+                .anyMatch(error -> error.contains("max-notification-price"))
                 .anyMatch(error -> error.contains("number-of-people"))
                 .anyMatch(error -> error.contains("number-of-room"))
                 .anyMatch(error -> error.contains("smoking-type"));

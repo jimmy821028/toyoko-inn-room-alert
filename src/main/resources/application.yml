@@ -46,6 +46,8 @@ toyoko-inn:
   hotel-names: ${TOYOKO_INN_HOTEL_NAMES:}
   # 每次呼叫東橫 INN 空房 API 時包含的飯店數量，必須大於 0。
   availability-batch-size: ${TOYOKO_INN_AVAILABILITY_BATCH_SIZE:30}
+  # 通知價格上限：最低價格小於或等於此值才通知；0 表示不限制，不得為負數。
+  max-notification-price: ${TOYOKO_INN_MAX_NOTIFICATION_PRICE:0}
   discord:
     # Discord Webhook URL；只由環境變數提供，避免提交秘密資料。未設定時停用 Discord 通知。
     webhook-url: ${TOYOKO_INN_DISCORD_WEBHOOK_URL:}
