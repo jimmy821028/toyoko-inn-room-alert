@@ -2,9 +2,12 @@ package jc.project.toyokoinn.config;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.InternetAddress;
@@ -22,8 +25,11 @@ import lombok.extern.slf4j.Slf4j;
 public class ToyokoInnConfigurationValidator implements ApplicationRunner {
 
     private static final ZoneId APPLICATION_TIME_ZONE = ZoneId.of("Asia/Taipei");
-    private static final Set<String> ALLOWED_SMOKING_TYPES =
-            Set.of("all", "smoking", "noSmoking");
+    private static final Map<String, String> SMOKING_TYPE_LABELS =
+            Map.of("all", "不限", "smoking", "吸菸房", "noSmoking", "禁菸房");
+    private static final Set<String> ALLOWED_SMOKING_TYPES = SMOKING_TYPE_LABELS.keySet();
+    private static final DateTimeFormatter DISPLAY_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("uuuu年M月d日");
 
     private final ToyokoInnProperties properties;
 
@@ -43,6 +49,33 @@ public class ToyokoInnConfigurationValidator implements ApplicationRunner {
         if (!errors.isEmpty()) {
             throw new IllegalStateException("toyoko-inn 設定無效，請檢查對應的 TOYOKO_INN_* 環境變數");
         }
+        describeSettings(properties).forEach(line -> log.info("{}", line));
+    }
+
+    /**
+     * 將已驗證的查詢與通知條件轉換成易讀的中文說明，每個設定一行。
+     *
+     * @param properties 已通過驗證的東橫 INN 設定
+     * @return 設定說明清單
+     */
+    static List<String> describeSettings(ToyokoInnProperties properties) {
+        String hotelNames = properties.getHotelNames().stream()
+                .filter(name -> name != null && !name.isBlank())
+                .map(String::strip)
+                .distinct()
+                .collect(Collectors.joining("、"));
+        String maxNotificationPrice = properties.getMaxNotificationPrice() == 0
+                ? "不限制"
+                : "%,d 以下（含）".formatted(properties.getMaxNotificationPrice());
+
+        return List.of(
+                "入住日期：" + DISPLAY_DATE_FORMATTER.format(properties.getCheckinDate()),
+                "退房日期：" + DISPLAY_DATE_FORMATTER.format(properties.getCheckoutDate()),
+                "每間房入住人數：" + properties.getNumberOfPeople() + " 人",
+                "預訂房間數：" + properties.getNumberOfRoom() + " 間",
+                "吸菸條件：" + SMOKING_TYPE_LABELS.get(properties.getSmokingType()),
+                "監控飯店：" + hotelNames,
+                "通知價格上限：" + maxNotificationPrice);
     }
 
     static List<String> validate(ToyokoInnProperties properties, LocalDate today) {

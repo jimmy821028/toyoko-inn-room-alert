@@ -130,6 +130,40 @@ class ToyokoInnConfigurationValidatorTests {
         }
     }
 
+    @Test
+    void describesSettingsInChineseOneLinePerSetting() {
+        ToyokoInnProperties properties = validProperties();
+        properties.setCheckinDate(LocalDate.of(2027, 6, 12));
+        properties.setCheckoutDate(LocalDate.of(2027, 6, 13));
+        properties.setNumberOfPeople(2);
+        properties.setHotelNames(List.of(" 飯店A", "飯店B", "飯店A", " "));
+        properties.setMaxNotificationPrice(10_000);
+
+        List<String> lines = ToyokoInnConfigurationValidator.describeSettings(properties);
+
+        assertThat(lines).containsExactly(
+                "入住日期：2027年6月12日",
+                "退房日期：2027年6月13日",
+                "每間房入住人數：2 人",
+                "預訂房間數：1 間",
+                "吸菸條件：禁菸房",
+                "監控飯店：飯店A、飯店B",
+                "通知價格上限：10,000 以下（含）");
+    }
+
+    @Test
+    void describesSmokingTypesAndUnlimitedMaxPrice() {
+        ToyokoInnProperties properties = validProperties();
+
+        properties.setSmokingType("all");
+        assertThat(ToyokoInnConfigurationValidator.describeSettings(properties))
+                .contains("吸菸條件：不限", "通知價格上限：不限制");
+
+        properties.setSmokingType("smoking");
+        assertThat(ToyokoInnConfigurationValidator.describeSettings(properties))
+                .contains("吸菸條件：吸菸房");
+    }
+
     private ToyokoInnProperties validProperties() {
         ToyokoInnProperties properties = new ToyokoInnProperties();
         properties.setHotelNames(List.of("東横INN新横浜駅前本館"));
